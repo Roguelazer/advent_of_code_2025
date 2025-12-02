@@ -16,7 +16,7 @@ ctrlc = "3"
 derive_more = { version = "2", features = ["full"] }
 good_lp = { version = "1", features = ["highs"], default-features = false }
 image = "0.24.7"
-itertools = "0.12"
+itertools = "0.14"
 lru-cache = "0.1.2"
 memoize = "0.4.2"
 mut-binary-heap = "0.1.0"
