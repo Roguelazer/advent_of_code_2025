@@ -1,4 +1,3 @@
-use itertools::Itertools;
 use std::ops::RangeInclusive;
 
 fn sum_invalid_part1(range: RangeInclusive<i64>) -> i64 {
@@ -21,14 +20,9 @@ fn is_invalid<const N: usize>(s: &[u8]) -> bool {
     if s.len() <= N || s.len() % N != 0 {
         return false;
     }
-    let mut i = s.iter();
-    let first = i.next_array::<N>().unwrap();
-    while let Some(candidate) = i.next_array::<N>() {
-        if candidate != first {
-            return false;
-        }
-    }
-    true
+    let mut i = s.chunks(N);
+    let first = i.next().unwrap();
+    i.all(|c| c == first)
 }
 
 fn sum_invalid_part2(range: RangeInclusive<i64>) -> i64 {
