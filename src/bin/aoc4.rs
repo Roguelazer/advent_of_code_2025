@@ -24,7 +24,7 @@ fn read_input() -> DenseGrid<Cell> {
     })
 }
 
-fn part1(grid: &DenseGrid<Cell>) -> usize {
+fn compute_neighbors(grid: &DenseGrid<Cell>) -> DenseGrid<u8> {
     let mut adjacencies = DenseGrid::new_with_dimensions_from(grid, 0);
     for (coordinate, value) in grid.iter() {
         if value != Cell::Full {
@@ -36,13 +36,15 @@ fn part1(grid: &DenseGrid<Cell>) -> usize {
             }
         }
     }
+    adjacencies
+}
+
+fn part1(grid: &DenseGrid<Cell>) -> usize {
+    let adjacencies = compute_neighbors(grid);
     grid.iter()
         .filter(|(coordinate, value)| {
             if *value == Cell::Full {
-                let Some(count) = adjacencies.get(*coordinate) else {
-                    return false;
-                };
-                count < 4
+                adjacencies[*coordinate] < 4
             } else {
                 false
             }
@@ -51,23 +53,13 @@ fn part1(grid: &DenseGrid<Cell>) -> usize {
 }
 
 fn part2(mut grid: DenseGrid<Cell>) -> usize {
-    let mut adjacencies = DenseGrid::new_with_dimensions_from(&grid, 0);
+    let mut adjacencies = compute_neighbors(&grid);
     let mut removed = 0;
-    for (coordinate, value) in grid.iter() {
-        if value != Cell::Full {
-            continue;
-        }
-        for neighbor in coordinate.all_neighbors_array() {
-            if let Some(p) = adjacencies.get_mut(neighbor) {
-                *p += 1;
-            }
-        }
-    }
     loop {
         let mut removed_this_round = BTreeSet::new();
         for (coordinate, value) in grid.iter() {
             if value == Cell::Full {
-                let count = adjacencies.get(coordinate).unwrap();
+                let count = adjacencies[coordinate];
                 if count < 4 {
                     removed_this_round.insert(coordinate);
                 }
@@ -76,6 +68,10 @@ fn part2(mut grid: DenseGrid<Cell>) -> usize {
         if removed_this_round.is_empty() {
             break;
         }
+        tracing::debug!(
+            removed_this_round = removed_this_round.len(),
+            "removed some items",
+        );
         removed += removed_this_round.len();
         for point in removed_this_round {
             for neighbor in point.all_neighbors_array() {
@@ -83,15 +79,14 @@ fn part2(mut grid: DenseGrid<Cell>) -> usize {
                     *p -= 1
                 }
             }
-            if let Some(cell) = grid.get_mut(point) {
-                *cell = Cell::Empty
-            }
+            grid[point] = Cell::Empty;
         }
     }
     removed
 }
 
 fn main() {
+    tracing_subscriber::fmt::init();
     let grid = read_input();
     println!("part 1: {}", part1(&grid));
     println!("part 2: {}", part2(grid.clone()));
