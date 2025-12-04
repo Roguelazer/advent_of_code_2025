@@ -8,19 +8,13 @@ pub enum Rotation {
     Mirror,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Hash, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq, Hash, PartialOrd, Ord)]
 pub struct Point<I: DimVal = i64> {
     pub x: I,
     pub y: I,
 }
 
 impl<I: DimVal + Eq> Eq for Point<I> {}
-
-impl<I: DimVal + Ord> Ord for Point<I> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap()
-    }
-}
 
 impl<I: DimVal> Point<I> {
     pub const fn new(x: I, y: I) -> Self {
@@ -71,8 +65,21 @@ impl Point<i64> {
         ]
     }
 
+    pub fn all_neighbors_array(&self) -> [Point; 8] {
+        [
+            *self + Self::new(1, 0),
+            *self + Self::new(0, 1),
+            *self + Self::new(-1, 0),
+            *self + Self::new(0, -1),
+            *self + Self::new(1, 1),
+            *self + Self::new(1, -1),
+            *self + Self::new(-1, 1),
+            *self + Self::new(-1, -1),
+        ]
+    }
+
     pub fn mirror(&self) -> Point {
-        Self::new(self.x * -1, self.y * -1)
+        Self::new(-self.x, -self.y)
     }
 }
 

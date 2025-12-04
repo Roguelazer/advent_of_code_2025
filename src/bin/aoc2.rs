@@ -17,7 +17,7 @@ fn sum_invalid_part1(range: RangeInclusive<i64>) -> i64 {
 }
 
 fn is_invalid<const N: usize>(s: &[u8]) -> bool {
-    if s.len() <= N || s.len() % N != 0 {
+    if s.len() <= N || s.len().is_multiple_of(N) {
         return false;
     }
     let mut i = s.chunks(N);

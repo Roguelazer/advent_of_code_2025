@@ -165,6 +165,11 @@ impl<V: Clone + fmt::Debug> DenseGrid<V> {
         self.cells.get(index).cloned()
     }
 
+    pub fn get_mut(&mut self, coordinate: Point<Index>) -> Option<&mut V> {
+        let index = self.index_for(coordinate)?;
+        self.cells.get_mut(index)
+    }
+
     /// Set a value by coordinate. Returns None if the coordinate is out-of-bounds.
     pub fn set(&mut self, coordinate: Point<Index>, value: V) -> Option<()> {
         let index = self.index_for(coordinate)?;
@@ -269,9 +274,9 @@ impl<V: Clone + fmt::Debug> DenseGrid<V> {
         if !self.contains(start) {
             anyhow::bail!("start point not contained in map");
         }
-        let mut new = DenseGrid::new_with_dimensions_from(&self, DijkstraMetric::Infinite);
+        let mut new = DenseGrid::new_with_dimensions_from(self, DijkstraMetric::Infinite);
         new.set(start, DijkstraMetric::Finite(MV::zero()));
-        let mut preds = DenseGrid::new_with_dimensions_from(&self, None);
+        let mut preds = DenseGrid::new_with_dimensions_from(self, None);
         let mut unvisited = BinaryHeap::new();
         let mut visited = BTreeSet::new();
         unvisited.push((Reverse(DijkstraMetric::Finite(MV::zero())), start));
@@ -286,10 +291,10 @@ impl<V: Clone + fmt::Debug> DenseGrid<V> {
                 if visited.contains(&neighbor) {
                     continue;
                 }
-                if !traversible(&self, neighbor) {
+                if !traversible(self, neighbor) {
                     continue;
                 }
-                let distance = cost(&self, point, neighbor);
+                let distance = cost(self, point, neighbor);
                 let next = current + distance;
                 let val = match new.get(neighbor) {
                     Some(DijkstraMetric::Finite(v)) => {
