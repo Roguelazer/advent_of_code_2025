@@ -74,6 +74,7 @@ where
 }
 
 // Perform Step 1 and Step 2 of the Bellman-Ford algorithm.
+#[allow(clippy::type_complexity)]
 #[inline(always)]
 fn bellman_ford_initialize_relax_multi_predecessors<G>(
     g: G,

@@ -250,6 +250,7 @@ impl<V: Clone + fmt::Debug> DenseGrid<V> {
         }
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn dijkstra<MV, TF, F>(
         &self,
         start: Point,

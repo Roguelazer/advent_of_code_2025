@@ -36,17 +36,15 @@ fn part1(g: &DenseGrid<Cell>) -> usize {
             if *cell == Cell::Start {
                 beam_columns.insert(i);
             }
-            if beam_columns.contains(&i) {
-                if *cell == Cell::Splitter {
-                    beam_columns.remove(&i);
-                    splits += 1;
-                    if i > 0 {
-                        // create to the left
-                        beam_columns.insert(i - 1);
-                    }
-                    if i < row.len() - 1 {
-                        beam_columns.insert(i + 1);
-                    }
+            if *cell == Cell::Splitter && beam_columns.remove(&i) {
+                beam_columns.remove(&i);
+                splits += 1;
+                if i > 0 {
+                    // create to the left
+                    beam_columns.insert(i - 1);
+                }
+                if i < row.len() - 1 {
+                    beam_columns.insert(i + 1);
                 }
             }
         }
@@ -56,7 +54,7 @@ fn part1(g: &DenseGrid<Cell>) -> usize {
 
 fn part2(g: &DenseGrid<Cell>) -> usize {
     let start = g.find(&Cell::Start).unwrap();
-    let mut cache = Arc::new(Mutex::new(BTreeMap::new()));
+    let cache = Arc::new(Mutex::new(BTreeMap::new()));
     cached_points_to_end_from(g, start + Point::new(0, 1), cache)
 }
 

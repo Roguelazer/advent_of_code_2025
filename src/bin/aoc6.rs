@@ -70,7 +70,7 @@ fn read_input_1(s: &str) -> anyhow::Result<Vec<Problem>> {
 
 fn read_input_2(s: &str) -> anyhow::Result<Vec<Problem>> {
     let lines = s.lines().filter(|l| !l.is_empty()).collect::<Vec<&str>>();
-    let num_rows = lines.iter().count();
+    let num_rows = lines.len();
     let num_cols = lines.iter().map(|l| l.trim().len()).max().unwrap();
     let mut separators = (0..num_cols)
         .filter(|i| lines.iter().all(|l| l.as_bytes()[*i] == b' '))
