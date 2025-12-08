@@ -25,6 +25,7 @@ nonempty = { version = "0.9", features = ["serde"] }
 num = "0.4.1"
 num-integer = "0.1.46"
 num-traits = "0.2"
+ordered-float = "5"
 petgraph = "0.6"
 rayon = "1"
 regex = "1"
