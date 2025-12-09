@@ -7,11 +7,11 @@ use super::point::Point;
 
 type Index = i64;
 
-pub trait HasEmpty {
+pub trait HasEmpty: PartialEq {
     fn empty_value() -> Self;
 }
 
-impl<T: Default> HasEmpty for T {
+impl<T: Default + PartialEq> HasEmpty for T {
     fn empty_value() -> Self {
         Self::default()
     }
@@ -98,6 +98,30 @@ impl<V: Clone + fmt::Debug + HasEmpty> DenseGrid<V> {
             }
         }
         Ok(g)
+    }
+
+    /// start flood-fill at the given point; fill empty
+    pub fn flood_fill(&mut self, start: Point<Index>, with: V) -> anyhow::Result<()> {
+        let empty = V::empty_value();
+        if self.index_for(start).is_none() {
+            anyhow::bail!("invalid start index")
+        };
+        if with == empty {
+            anyhow::bail!("don't fill with empty");
+        }
+        let mut q = std::collections::VecDeque::new();
+        q.push_back(start);
+        while let Some(next) = q.pop_front() {
+            if let Some(index) = self.index_for(next)
+                && self.cells[index] == empty
+            {
+                self.cells[index] = with.clone();
+                for point in next.ordinal_neighbors_array() {
+                    q.push_back(point);
+                }
+            }
+        }
+        Ok(())
     }
 }
 
