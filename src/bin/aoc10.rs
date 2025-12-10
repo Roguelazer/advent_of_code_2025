@@ -1,5 +1,6 @@
 use std::collections::{BTreeSet, VecDeque};
 
+use bit_set::BitSet;
 use good_lp::{Solution as _, SolverModel as _};
 use nom::IResult;
 use nom::bytes::complete::tag;
@@ -7,10 +8,11 @@ use nom::character::complete::{one_of, space1};
 use nom::combinator::map;
 use nom::multi::{many1, separated_list1};
 use nom::sequence::{delimited, terminated, tuple};
+use tap::Tap;
 
 #[derive(Debug, Clone)]
 struct Machine {
-    lights: Box<[bool]>,
+    lights: BitSet,
     wirings: Vec<Vec<u8>>,
     joltages: Box<[u32]>,
 }
@@ -24,17 +26,27 @@ impl Machine {
                 Self::parse_joltages,
             )),
             |(lights, wirings, joltages)| Self {
-                lights: lights.into(),
+                lights,
                 wirings,
                 joltages: joltages.into(),
             },
         )(s)
     }
 
-    fn parse_lights(s: &str) -> IResult<&str, Vec<bool>> {
+    fn parse_lights(s: &str) -> IResult<&str, BitSet> {
         map(
             delimited(tag("["), many1(one_of(".#")), tag("]")),
-            |lights| lights.into_iter().map(|l| l == '#').collect(),
+            |lights| {
+                lights
+                    .into_iter()
+                    .enumerate()
+                    .fold(BitSet::new(), |mut bs, (i, l)| {
+                        if l == '#' {
+                            bs.insert(i);
+                        }
+                        bs
+                    })
+            },
         )(s)
     }
 
@@ -58,16 +70,12 @@ impl Machine {
         )(s)
     }
 
-    fn initial_lights(&self) -> Box<[bool]> {
-        vec![false; self.lights.len()].into()
-    }
-
     fn part1(&self) -> usize {
-        let mut cache = BTreeSet::<Box<[bool]>>::new();
+        let mut cache = BTreeSet::<BitSet>::new();
 
         let mut tasks = VecDeque::new();
 
-        tasks.push_back((0, self.initial_lights()));
+        tasks.push_back((0, BitSet::new()));
 
         while let Some((current, current_state)) = tasks.pop_front() {
             if current_state == self.lights {
@@ -85,13 +93,16 @@ impl Machine {
         0
     }
 
-    fn apply_wiring_to_lights(state: &[bool], wiring: &[u8]) -> Box<[bool]> {
-        let mut state = state.to_owned();
-        for wire in wiring {
-            let index = (*wire) as usize;
-            state[index] = !state[index];
-        }
-        state.into()
+    fn apply_wiring_to_lights(state: &BitSet, wiring: &[u8]) -> BitSet {
+        state.clone().tap_mut(|state| {
+            for wire in wiring {
+                if state.contains(*wire as usize) {
+                    state.remove(*wire as usize);
+                } else {
+                    state.insert(*wire as usize);
+                }
+            }
+        })
     }
 
     fn part2(&self) -> i32 {
@@ -115,16 +126,18 @@ impl Machine {
 
         let mut vars = good_lp::variables!();
 
-        let mut button_variables = Vec::with_capacity(self.wirings.len());
-
-        for button in self.wirings.iter() {
-            let max_value = button
-                .iter()
-                .map(|b| self.joltages[(*b) as usize])
-                .min()
-                .unwrap();
-            button_variables.push(vars.add(good_lp::variable().integer().min(0).max(max_value)));
-        }
+        let button_variables = self
+            .wirings
+            .iter()
+            .map(|button| {
+                let max_value = button
+                    .iter()
+                    .map(|b| self.joltages[(*b) as usize])
+                    .min()
+                    .unwrap();
+                vars.add(good_lp::variable().integer().min(0).max(max_value))
+            })
+            .collect::<Vec<_>>();
 
         let objective = button_variables
             .iter()
@@ -142,7 +155,7 @@ impl Machine {
                 .enumerate()
                 .filter_map(|(bi, wires)| {
                     if wires.iter().any(|bj| *bj as usize == i) {
-                        Some(button_variables[bi].clone())
+                        Some(button_variables[bi])
                     } else {
                         None
                     }
@@ -163,15 +176,17 @@ impl Machine {
         // check the solution
         #[cfg(debug_assertions)]
         {
+            tracing::debug!(?res, "back-checking solution");
             let mut applied = vec![0; self.joltages.len()];
             for (i, var) in button_variables.iter().enumerate() {
-                tracing::trace!(i, ?var, val = res.value(*var), "backchecking");
                 let count = res.value(*var).round() as u32;
+                tracing::trace!(i, ?var, val = res.value(*var), count, "backchecking");
                 for wire in self.wirings[i].iter() {
                     applied[*wire as usize] += count;
                 }
             }
             let applied: Box<[u32]> = applied.into();
+            tracing::debug!(got=?applied, expected=?self.joltages, "got new joltages");
             assert_eq!(applied, self.joltages);
         }
 

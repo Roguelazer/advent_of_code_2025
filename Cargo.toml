@@ -9,7 +9,7 @@ path = "src/aoclib/lib.rs"
 
 [dependencies]
 anyhow = "1"
-bit-set = "0.5"
+bit-set = "0.8"
 clap = { version = "4", features = ["derive"] }
 crossterm = "0.27.0"
 ctrlc = "3"
