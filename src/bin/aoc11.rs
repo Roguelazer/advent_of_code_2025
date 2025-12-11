@@ -1,7 +1,6 @@
 use itertools::Itertools;
 use petgraph::graph::DiGraph;
-use std::collections::hash_map::RandomState;
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::Write;
 use tap::Pipe;
 
@@ -12,6 +11,7 @@ struct DeviceId(u32);
 struct Problem {
     devices: BTreeMap<String, DeviceId>,
     connections: BTreeMap<DeviceId, BTreeSet<DeviceId>>,
+    graph: DiGraph<String, ()>,
 }
 
 impl Problem {
@@ -31,7 +31,7 @@ impl Problem {
                 next_id += 1;
                 id
             });
-            let device_connections = rest
+            let device_connections: BTreeSet<DeviceId> = rest
                 .split_whitespace()
                 .map(|other| {
                     *devices.entry(other.to_owned()).or_insert_with(|| {
@@ -43,9 +43,22 @@ impl Problem {
                 .collect();
             connections.insert(device_id, device_connections);
         }
+        let mut graph = DiGraph::<String, ()>::new();
+        for (name, _) in devices.iter().sorted_by_key(|(_, i)| i.0) {
+            graph.add_node(name.clone());
+        }
+        graph.extend_with_edges(
+            connections
+                .iter()
+                .flat_map(|(source, dests)| dests.iter().map(|dest| (source.0, dest.0))),
+        );
+        if petgraph::algo::is_cyclic_directed(&graph) {
+            anyhow::bail!("there is a cycle");
+        }
         Ok(Self {
             devices,
             connections,
+            graph,
         })
     }
 
@@ -56,20 +69,8 @@ impl Problem {
         let Some(finish) = self.devices.get("out").copied() else {
             anyhow::bail!("could not find 'out'");
         };
-        let graph = DiGraph::<(), ()>::from_edges(
-            self.connections
-                .iter()
-                .flat_map(|(source, dests)| dests.iter().map(|dest| (source.0, dest.0))),
-        );
-        petgraph::algo::all_simple_paths::<Vec<_>, _, RandomState>(
-            &graph,
-            start.0.into(),
-            finish.0.into(),
-            0,
-            None,
-        )
-        .count()
-        .pipe(Ok)
+        self.count_paths_between(&self.graph, start, finish)
+            .pipe(Ok)
     }
 
     fn part2(&self) -> anyhow::Result<usize> {
@@ -85,21 +86,6 @@ impl Problem {
         let Some(dac) = self.devices.get("dac").copied() else {
             anyhow::bail!("could not find 'dac'");
         };
-        let mut graph = DiGraph::<String, ()>::new();
-        for (name, _) in self.devices.iter().sorted_by_key(|(_, i)| i.0) {
-            graph.add_node(name.clone());
-        }
-        graph.extend_with_edges(
-            self.connections
-                .iter()
-                .flat_map(|(source, dests)| dests.iter().map(|dest| (source.0, dest.0))),
-        );
-
-        if petgraph::algo::is_cyclic_directed(&graph) {
-            anyhow::bail!("there is a cycle");
-        }
-        // let fft = petgraph::graph::NodeIndex::new(fft.0 as usize);
-        //let dac = petgraph::graph::NodeIndex::new(dac.0 as usize);
 
         // good news: there are no paths from dac to fft, which means that all paths must
         // have the form of `svr -> fft` followed by `fft -> dac`, followed by `dac -> out`.
@@ -107,11 +93,11 @@ impl Problem {
         // furthermore, there are no cycles, so any path that ever traverses a node "below" FFT
         // cannot get back to it.
 
-        let to_fft = self.count_paths_between(&graph, start, fft);
+        let to_fft = self.count_paths_between(&self.graph, start, fft);
         tracing::debug!("found {} paths between start and fft", to_fft);
-        let to_dac = self.count_paths_between(&graph, fft, dac);
+        let to_dac = self.count_paths_between(&self.graph, fft, dac);
         tracing::debug!("found {} paths between fft and dac", to_dac);
-        let to_end = self.count_paths_between(&graph, dac, finish);
+        let to_end = self.count_paths_between(&self.graph, dac, finish);
         tracing::debug!("found {} paths between dac and finish", to_end);
 
         Ok(to_fft * to_dac * to_end)
@@ -123,28 +109,32 @@ impl Problem {
         start: DeviceId,
         finish: DeviceId,
     ) -> usize {
-        let dj = petgraph::algo::dijkstra(graph, finish.0.into(), None, |_| 1);
-        let mut reachable_from_finish: BTreeSet<DeviceId> =
-            dj.keys().map(|ni| DeviceId(ni.index() as u32)).collect();
-        reachable_from_finish.remove(&finish);
-        let mut count = 0;
-        let mut queue = VecDeque::new();
-        queue.push_back(start);
+        let mut memo = BTreeMap::new();
+        memo.insert(finish, 1);
 
-        while let Some(node) = queue.pop_front() {
-            if node == finish {
-                count += 1
-            } else {
-                if let Some(neighbors) = self.connections.get(&node).as_ref() {
-                    for neighbor in neighbors.iter() {
-                        if !reachable_from_finish.contains(neighbor) {
-                            queue.push_back(*neighbor);
-                        }
-                    }
-                }
+        let mut sorted_nodes = petgraph::algo::toposort(&graph, None)
+            .unwrap()
+            .into_iter()
+            .map(|n| DeviceId(n.index() as u32))
+            .collect::<Vec<_>>();
+        sorted_nodes.reverse();
+        let start_idx = sorted_nodes.iter().position(|n| *n == finish).unwrap() + 1;
+        let finish_idx = sorted_nodes.iter().position(|n| *n == start).unwrap();
+        assert!(start_idx < finish_idx);
+
+        for node in &sorted_nodes[start_idx..=finish_idx] {
+            if let Some(neighbors) = self.connections.get(&node) {
+                memo.insert(
+                    *node,
+                    neighbors
+                        .iter()
+                        .filter_map(|n| memo.get(n).copied())
+                        .sum::<usize>(),
+                );
             }
         }
-        count
+
+        memo.get(&start).copied().unwrap_or(0)
     }
 
     #[allow(unused)]
